@@ -1,0 +1,82 @@
+# --- C/C++ build artifacts ---
+*.o
+*.obj
+*.lo
+*.la
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.out
+
+# Dependency files
+*.d
+
+# Debug / profiling / coverage
+*.gch
+*.pch
+*.gcno
+*.gcda
+*.gcov
+*.profraw
+*.profdata
+
+# --- Common build directories ---
+build/
+Build/
+build-*/
+cmake-build-*/
+dist/
+out/
+.cache/
+
+# --- CMake / Ninja ---
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+CTestTestfile.cmake
+Testing/
+.ninja_deps
+.ninja_log
+*.ninja
+
+# --- Autotools ---
+autom4te.cache/
+aclocal.m4
+config.log
+config.status
+config.cache
+configure
+depcomp
+install-sh
+missing
+ltmain.sh
+libtool
+Makefile.in
+
+# --- Make ---
+*.mk
+*.make
+*.rej
+*.orig
+
+# --- Editors / OS ---
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# --- Project-specific ---
+# Postgres extension shared library output
+pg_otel_trace.so
+
