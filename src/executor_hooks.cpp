@@ -41,6 +41,7 @@ static void WriteTrace(QueryDesc *queryDesc, bool is_error) {
 
 // We must declare hook variables to save state
 static ExecutorRun_hook_type prev_ExecutorRun = NULL;
+static ExecutorEnd_hook_type prev_ExecutorEnd = NULL;
 
 static void profile_ExecutorRun(QueryDesc *queryDesc, ScanDirection direction, uint64 count, bool execute_once) {
     // We wrap the core execution in Postgres's exception handler
@@ -82,7 +83,14 @@ static void profile_ExecutorEnd(QueryDesc *queryDesc) {
 
 // Update the install function to include ExecutorRun
 void InstallExecutorHooks() {
-    // ... start and end ...
     prev_ExecutorRun = ExecutorRun_hook;
     ExecutorRun_hook = profile_ExecutorRun;
+
+    prev_ExecutorEnd = ExecutorEnd_hook;
+    ExecutorEnd_hook = profile_ExecutorEnd;
+}
+
+void UninstallExecutorHooks() {
+    ExecutorRun_hook = prev_ExecutorRun;
+    ExecutorEnd_hook = prev_ExecutorEnd;
 }

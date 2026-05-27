@@ -3,9 +3,18 @@ services:
     build: .
     environment:
       - POSTGRES_PASSWORD=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=postgres
     ports:
       - "5432:5432"
     volumes:
       - .:/workspace  # Mounts your local folder to /workspace in the container
     # After `make && make install` inside the container, enable preload and restart:
     command: postgres -c shared_preload_libraries='pg_otel_trace'
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.58
+    command: ["--collector.otlp.enabled=true"]
+    ports:
+      - "16686:16686" # Jaeger UI
+      - "4318:4318"   # OTLP HTTP receiver

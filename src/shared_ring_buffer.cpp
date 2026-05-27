@@ -1,6 +1,7 @@
 #include "shared_ring_buffer.h"
 
 extern "C" {
+    #include "miscadmin.h"
     #include "storage/shmem.h"
     #include "storage/ipc.h"
 }
@@ -8,6 +9,15 @@ extern "C" {
 TraceRingBuffer *SharedRingBuffer = NULL;
 
 static shmem_startup_hook_type prev_shmem_startup_hook = NULL;
+static shmem_request_hook_type prev_shmem_request_hook = NULL;
+
+static void otel_shmem_request(void)
+{
+    if (prev_shmem_request_hook)
+        prev_shmem_request_hook();
+
+    RequestAddinShmemSpace(sizeof(TraceRingBuffer));
+}
 
 static void otel_shmem_startup(void) {
     if(prev_shmem_startup_hook) prev_shmem_startup_hook();
@@ -24,6 +34,13 @@ static void otel_shmem_startup(void) {
 }
 
 void ReqestSharedMemory(){
+    prev_shmem_request_hook = shmem_request_hook;
+    shmem_request_hook = otel_shmem_request;
+
     prev_shmem_startup_hook = shmem_startup_hook;
     shmem_startup_hook = otel_shmem_startup;
+}
+
+void RequestSharedMemory() {
+    ReqestSharedMemory();
 }

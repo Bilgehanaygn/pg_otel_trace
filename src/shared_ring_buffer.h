@@ -1,8 +1,7 @@
 #pragma once
 
-#include <cstdint>
-
 extern "C" {
+#include "postgres.h"
 #include "port/atomics.h"
 }
 
@@ -20,8 +19,8 @@ struct TraceRingBuffer {
     pg_atomic_uint64 write_index;
     pg_atomic_uint64 read_index;
     RawTraceEvent events[RING_BUFFER_CAPACITY];
-}
+};
 
-extern TracingRingBuffer *SharedRingBuffer;
+extern TraceRingBuffer *SharedRingBuffer;
 
 void RequestSharedMemory();

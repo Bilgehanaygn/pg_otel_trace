@@ -8,6 +8,7 @@ extern "C" {
 // 1. Initialize our global variables with default values
 char* otel_collector_endpoint = NULL;
 char* otel_service_name = NULL;
+char* otel_db_name = NULL;
 
 void DefineExtensionGUCs() {
     // 2. Define the Collector Endpoint Variable
@@ -16,7 +17,7 @@ void DefineExtensionGUCs() {
         "URL of the OpenTelemetry OTLP HTTP Collector", // Short description
         NULL,                            // Long description
         &otel_collector_endpoint,        // The C++ variable it writes to
-        "http://localhost:4318/v1/traces", // Default value
+        "http://jaeger:4318/v1/traces",  // Default value (docker-compose service)
         PGC_SIGHUP,                      // Can be reloaded without restarting the DB
         0,                               // Flags
         NULL, NULL, NULL                 // Validation hooks (not needed here)
@@ -28,7 +29,18 @@ void DefineExtensionGUCs() {
         "The service.name attribute attached to spans",
         NULL,
         &otel_service_name,
-        "postgres-production-db",
+        "postgres",
+        PGC_SIGHUP,
+        0,
+        NULL, NULL, NULL
+    );
+
+    DefineCustomStringVariable(
+        "pg_otel.db_name",
+        "Database name attached to spans (db.name)",
+        NULL,
+        &otel_db_name,
+        "postgres",
         PGC_SIGHUP,
         0,
         NULL, NULL, NULL

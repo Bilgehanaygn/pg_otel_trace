@@ -10,6 +10,7 @@
 #include "opentelemetry/sdk/resource/semantic_conventions.h"
 #include "opentelemetry/exporters/otlp/otlp_http_exporter_factory.h"
 #include "opentelemetry/exporters/otlp/otlp_http_exporter_options.h"
+#include "opentelemetry/sdk/trace/batch_span_processor_factory.h"
 #include <stdatomic.h>
 #include "config.h"
 
@@ -26,7 +27,7 @@ static void InitOpenTelemetry() {
     // 1. Read the Service Name from our GUC
     resource::ResourceAttributes attributes = {
         {resource::SemanticConventions::kServiceName, otel_service_name},
-        {"process.pid", MyProcPid} 
+        {"process.pid", static_cast<int64_t>(MyProcPid)}
     };
     auto resource = resource::Resource::Create(attributes);
 
@@ -48,7 +49,7 @@ static void InitOpenTelemetry() {
     elog(LOG, "pg_otel_trace: OTel HTTP Exporter initialized pointing to %s", otel_collector_endpoint);
 }
 
-extern "C" void otel_background_worker_main(Datum main_arg) {
+extern "C" PGDLLEXPORT void otel_background_worker_main(Datum main_arg) {
     InitOpenTelemetry(); 
     auto tracer = trace_api::Provider::GetTracerProvider()->GetTracer("postgres-bgworker");
 
@@ -69,6 +70,8 @@ extern "C" void otel_background_worker_main(Datum main_arg) {
 
             auto span = tracer->StartSpan("ExecuteQuery");
             span->SetAttribute("db.system", "postgresql");
+            if (otel_db_name != NULL)
+                span->SetAttribute("db.name", otel_db_name);
             span->SetAttribute("db.statement", event->query_text);
             span->End(); 
 

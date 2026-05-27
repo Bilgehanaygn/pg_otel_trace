@@ -9,10 +9,12 @@ RUN apt-get update && apt-get install -y \
     cmake \
     git \
     libcurl4-openssl-dev \
+    protobuf-compiler \
+    libprotobuf-dev \
     postgresql-server-dev-16 \
     && rm -rf /var/lib/apt/lists/*
 
-# Build OpenTelemetry C++ (ostream exporter only; OTLP pulls in broken benchmark targets on main)
+# Build OpenTelemetry C++ (OTLP HTTP exporter enabled)
 WORKDIR /tmp
 RUN git clone --depth 1 --branch v1.21.0 https://github.com/open-telemetry/opentelemetry-cpp.git && \
     cd opentelemetry-cpp && \
@@ -26,7 +28,7 @@ RUN git clone --depth 1 --branch v1.21.0 https://github.com/open-telemetry/opent
       -DWITH_LOGS_PREVIEW=OFF \
       -DBUILD_SHARED_LIBS=OFF \
       -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
-      -DWITH_OTLP_HTTP=OFF \
+      -DWITH_OTLP_HTTP=ON \
       -DWITH_OTLP_GRPC=OFF && \
     cmake --build . --target install -j "$(nproc)" && \
     cd /tmp && rm -rf opentelemetry-cpp
