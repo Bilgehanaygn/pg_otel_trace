@@ -2,6 +2,7 @@ extern "C" {
 #include "postgres.h"
 #include "fmgr.h"
 #include "utils/elog.h"
+#include "miscadmin.h"
 }
 
 // Include our custom module headers
@@ -17,11 +18,21 @@ extern "C" {
 }
 
 void _PG_init(void) {
+    // 1. Ensure we are loaded via shared_preload_libraries, not dynamically
+    if (!process_shared_preload_libraries_in_progress) {
+        elog(WARNING, "pg_otel_trace must be loaded via shared_preload_libraries");
+        return;
+    }
+
+    // 2. Safety Check: Do not load in single-user or bootstrap modes (used by initdb)
+    if (!IsPostmasterEnvironment || IsBootstrapProcessingMode()) {
+        elog(LOG, "pg_otel_trace: Bootstrap/Single-user mode detected. Skipping extension load.");
+        return;
+    }
+
     elog(LOG, "pg_otel_trace: Initializing extension...");
 
-    // 1. Define GUCs FIRST so they are available immediately
     DefineExtensionGUCs();
-
     RequestSharedMemory();
     RegisterOtelWorker();
     InstallExecutorHooks();

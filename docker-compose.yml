@@ -8,9 +8,9 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - .:/workspace  # Mounts your local folder to /workspace in the container
-    # After `make && make install` inside the container, enable preload and restart:
-    command: postgres -c shared_preload_libraries='pg_otel_trace'
+      - .:/workspace 
+      # Mount the init script to run during database creation
+      - ./scripts/01-enable-extension.sh:/docker-entrypoint-initdb.d/01-enable-extension.sh
 
   jaeger:
     image: jaegertracing/all-in-one:1.58

@@ -11,6 +11,7 @@
 *.dll
 *.exe
 *.out
+*.bc
 
 # Dependency files
 *.d
