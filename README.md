@@ -1,2 +1,45 @@
 # pg_otel_trace
-A pg extension that traces query execution allowing you to export each plan node's execution time as a separate span.
+
+`pg_otel_trace` is a PostgreSQL extension that traces query execution and exports each execution plan node's runtime as a separate OpenTelemetry span.
+
+## Goal
+
+The project builds a Postgres extension that hooks into the executor and records fine-grained timing information for individual plan nodes. The extension is intended for use with OpenTelemetry-compatible backends such as Jaeger.
+
+## Quick start
+
+1. Build the Docker image:
+
+   ```bash
+   docker compose build db
+   ```
+
+2. Start the stack:
+
+   ```bash
+   docker compose up
+   ```
+
+3. Open the Jaeger UI:
+
+   - http://localhost:16686
+
+4. Connect to Postgres on:
+
+   - `localhost:5432`
+
+## Notes
+
+- The Docker image builds the extension from the repository using the provided `Dockerfile`.
+- The `docker-compose.yml` service mounts the repository into the container and also mounts `scripts/01-enable-extension.sh` into `/docker-entrypoint-initdb.d/` so the extension is enabled when the database initializes.
+- If you change source files, rebuild the image with:
+
+   ```bash
+   docker compose build --no-cache db
+   ```
+
+- Stop the stack with:
+
+   ```bash
+   docker compose down
+   ```
