@@ -6,6 +6,34 @@
 
 The project builds a Postgres extension that hooks into the executor and records fine-grained timing information for individual plan nodes. The extension is intended for use with OpenTelemetry-compatible backends such as Jaeger.
 
+## High-level flow
+
+```text
+Client SQL query
+       │
+       ▼
+Postgres executor
+       │
+       ▼
+Executor hooks in extension
+       │
+       ▼
+Shared ring buffer (in-memory queue)
+       │
+       ▼
+OTel worker thread reads buffer
+       │
+       ▼
+Builds spans and exports via OTLP
+       │
+       ▼
+Jaeger / OpenTelemetry backend
+```
+
+- `executor_hooks` captures per-plan-node execution timing and writes events to the ring buffer.
+- `shared_ring_buffer` stores events safely for asynchronous export.
+- `otel_worker` consumes buffer events, converts them to OpenTelemetry spans, and sends them out via OTLP.
+
 ## Quick start
 
 1. Build the Docker image:
