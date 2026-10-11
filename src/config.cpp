@@ -9,6 +9,8 @@ extern "C" {
 char* otel_collector_endpoint = NULL;
 char* otel_service_name = NULL;
 char* otel_db_name = NULL;
+double guc_sample_rate = 0.01;
+int guc_min_duration_ms = 50;
 
 void DefineExtensionGUCs() {
     // 2. Define the Collector Endpoint Variable
@@ -42,6 +44,32 @@ void DefineExtensionGUCs() {
         &otel_db_name,
         "postgres",
         PGC_SIGHUP,
+        0,
+        NULL, NULL, NULL
+    );
+
+    DefineCustomRealVariable(
+        "pg_otel.sample_rate",
+        "Fraction of queries to instrument at the node level (0.0 to 1.0)",
+        NULL,
+        &guc_sample_rate,
+        0.01,
+        0.0,
+        1.0,
+        PGC_SUSET,
+        0,
+        NULL, NULL, NULL
+    );
+
+    DefineCustomIntVariable(
+        "pg_otel.min_duration_ms",
+        "Minimum execution time to export a trace (in milliseconds)",
+        NULL,
+        &guc_min_duration_ms,
+        50,
+        0,
+        INT_MAX,
+        PGC_SUSET,
         0,
         NULL, NULL, NULL
     );

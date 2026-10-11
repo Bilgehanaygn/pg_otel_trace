@@ -5,6 +5,8 @@
 extern char* otel_collector_endpoint;
 extern char* otel_service_name;
 extern char* otel_db_name;
+extern double guc_sample_rate;
+extern int guc_min_duration_ms;
 
 // Signature to register the variables with Postgres
 void DefineExtensionGUCs();

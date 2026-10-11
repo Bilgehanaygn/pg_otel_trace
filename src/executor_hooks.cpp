@@ -1,8 +1,10 @@
 #include "executor_hooks.h"
 #include "shared_ring_buffer.h"
+#include "config.h"
 #include <cstring>
 #include <exception>
 #include <chrono>
+#include <random>
 
 extern "C" {
 #include "postgres.h"
@@ -129,14 +131,50 @@ static void WriteTrace(QueryDesc* queryDesc, bool is_error) {
     pg_atomic_write_u32(&event->ready, 1);
 }
 
+// Thread-local RNG for lock-free sampling on the hot path (one backend, one thread).
+static thread_local std::mt19937 rng(std::random_device{}());
+static thread_local std::uniform_real_distribution<double> dist(0.0, 1.0);
+
+static bool ShouldSampleQuery(void) {
+    if (guc_sample_rate >= 1.0) {
+        return true;
+    }
+    if (guc_sample_rate <= 0.0) {
+        return false;
+    }
+    return dist(rng) < guc_sample_rate;
+}
+
+static bool QueryWasInstrumented(const QueryDesc *queryDesc) {
+    return queryDesc != NULL && (queryDesc->instrument_options & INSTRUMENT_TIMER) != 0;
+}
+
+static double QueryDurationMs(const QueryDesc *queryDesc) {
+    if (queryDesc->planstate != NULL && queryDesc->planstate->instrument != NULL) {
+        return queryDesc->planstate->instrument->total * 1000.0;
+    }
+    if (queryDesc->totaltime != NULL) {
+        return queryDesc->totaltime->total * 1000.0;
+    }
+    return 0.0;
+}
+
+static bool ShouldExportTrace(const QueryDesc *queryDesc) {
+    if (!QueryWasInstrumented(queryDesc)) {
+        return false;
+    }
+    return QueryDurationMs(queryDesc) >= (double)guc_min_duration_ms;
+}
+
 // 3. The Hooks
 static ExecutorStart_hook_type prev_ExecutorStart = NULL;
 static ExecutorRun_hook_type prev_ExecutorRun = NULL;
 static ExecutorEnd_hook_type prev_ExecutorEnd = NULL;
 
 static void profile_ExecutorStart(QueryDesc *queryDesc, int eflags) {
-    // Turn on native instrumentation
-    queryDesc->instrument_options |= INSTRUMENT_TIMER | INSTRUMENT_ROWS;
+    if (ShouldSampleQuery()) {
+        queryDesc->instrument_options |= INSTRUMENT_TIMER | INSTRUMENT_ROWS;
+    }
 
     if (prev_ExecutorStart) prev_ExecutorStart(queryDesc, eflags);
     else standard_ExecutorStart(queryDesc, eflags);
@@ -158,16 +196,20 @@ static void profile_ExecutorRun(QueryDesc *queryDesc, ScanDirection direction, u
     }
     PG_CATCH();
     {
-        // Query crashed mid-flight! Write the trace tree we have so far.
-        WriteTrace(queryDesc, true);
+        // Query crashed mid-flight. Export only if this query was sampled.
+        if (QueryWasInstrumented(queryDesc)) {
+            WriteTrace(queryDesc, true);
+        }
         PG_RE_THROW();
     }
     PG_END_TRY();
 }
 
 static void profile_ExecutorEnd(QueryDesc *queryDesc) {
-    // Query succeeded normally.
-    WriteTrace(queryDesc, false);
+    // Write before standard_ExecutorEnd: it tears down planstate.
+    if (ShouldExportTrace(queryDesc)) {
+        WriteTrace(queryDesc, false);
+    }
 
     if (prev_ExecutorEnd) prev_ExecutorEnd(queryDesc);
     else standard_ExecutorEnd(queryDesc);
