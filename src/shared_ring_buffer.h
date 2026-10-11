@@ -20,7 +20,9 @@ struct PlanNodeStat {
     uint64_t duration_ns;
     uint64_t rows_produced;
 };
+
 struct RawTraceEvent {
+    pg_atomic_uint32 ready; // 0 = empty/writing, 1 = payload ready for worker
     uint64_t trace_id;
     uint64_t start_time_unix_ns;
     uint64_t query_duration_ns;
@@ -34,6 +36,7 @@ struct RawTraceEvent {
 struct TraceRingBuffer {
     pg_atomic_uint64 write_index;
     pg_atomic_uint64 read_index;
+    pg_atomic_uint64 dropped_events; // Track buffer overflow occurences
     RawTraceEvent events[RING_BUFFER_CAPACITY];
 };
 

@@ -147,6 +147,19 @@ extern "C" PGDLLEXPORT void otel_background_worker_main(Datum main_arg) {
             uint64_t index = current_read % RING_BUFFER_CAPACITY;
             RawTraceEvent* event = &SharedRingBuffer->events[index];
 
+
+            //Consumer Safety Check
+            //backend process may have reserved the slot but hasn't finished writing yet
+            //achieve this by checking the flag that events do carry
+            
+            if(pg_atomic_read_u32(&event->ready) == 0){
+                break;
+            }
+
+            // Prevent modern CPUs from out of order read operation
+            // the rest of the data should only be read if the flag check has passed!
+            pg_read_barrier();
+
             std::chrono::nanoseconds start_time(event->start_time_unix_ns);
             std::chrono::system_clock::time_point span_start(start_time);
             std::chrono::steady_clock::time_point steady_baseline(std::chrono::nanoseconds(0));

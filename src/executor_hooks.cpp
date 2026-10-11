@@ -85,42 +85,48 @@ static void ExtractNodeStats(PlanState *planstate, int parent_id, RawTraceEvent*
 }
 
 // 2. The Unified Write Function (Handles both success and errors)
-static void WriteTrace(QueryDesc *queryDesc, bool is_error) {
-    if (SharedRingBuffer == NULL) return;
-
-    uint64_t current_write = pg_atomic_read_u64(&SharedRingBuffer->write_index);
-    uint64_t current_read = pg_atomic_read_u64(&SharedRingBuffer->read_index);
-
-    if (current_write - current_read < RING_BUFFER_CAPACITY) {
-        uint64_t index = current_write % RING_BUFFER_CAPACITY;
-        RawTraceEvent* event = &SharedRingBuffer->events[index];
-        
-        auto now = std::chrono::system_clock::now();
-        event->start_time_unix_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
-        
-        if (queryDesc->sourceText) {
-            if (is_error) {
-                snprintf(event->query_text, MAX_QUERY_TEXT_LEN, "[FAILED] %s", queryDesc->sourceText);
-            } else {
-                strncpy(event->query_text, queryDesc->sourceText, MAX_QUERY_TEXT_LEN - 1);
-            }
-            event->query_text[MAX_QUERY_TEXT_LEN - 1] = '\0';
-        }
-
-        event->node_count = 0;
-
-        if (queryDesc->planstate) {
-            ExtractNodeStats(queryDesc->planstate, -1, event);
-        }
-
-        if (event->node_count > 0) {
-            event->query_duration_ns = event->nodes[0].duration_ns;
-        } else {
-            event->query_duration_ns = 0;
-        }
-
-        pg_atomic_write_u64(&SharedRingBuffer->write_index, current_write + 1);
+static void WriteTrace(QueryDesc* queryDesc, bool is_error) {
+    if (SharedRingBuffer == NULL || queryDesc == NULL) {
+        return;
     }
+
+    uint64_t current_read = pg_atomic_read_u64(&SharedRingBuffer->read_index);
+    uint64_t reserved_pos = pg_atomic_fetch_add_u64(&SharedRingBuffer->write_index, 1);
+
+    if (reserved_pos - current_read >= RING_BUFFER_CAPACITY) {
+        pg_atomic_fetch_add_u64(&SharedRingBuffer->dropped_events, 1);
+        return;
+    }
+
+    uint64_t index = reserved_pos % RING_BUFFER_CAPACITY;
+    RawTraceEvent* event = &SharedRingBuffer->events[index];
+    memset(event, 0, sizeof(*event));
+
+    auto now = std::chrono::system_clock::now();
+    event->start_time_unix_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
+
+    if (queryDesc->sourceText) {
+        if (is_error) {
+            snprintf(event->query_text, MAX_QUERY_TEXT_LEN, "[FAILED] %s", queryDesc->sourceText);
+        } else {
+            snprintf(event->query_text, MAX_QUERY_TEXT_LEN, "%s", queryDesc->sourceText);
+        }
+    }
+
+    event->node_count = 0;
+    if (queryDesc->planstate) {
+        ExtractNodeStats(queryDesc->planstate, -1, event);
+    }
+
+    if (event->node_count > 0) {
+        event->query_duration_ns = event->nodes[0].duration_ns;
+    } else {
+        event->query_duration_ns = 0;
+    }
+
+    pg_write_barrier();
+
+    pg_atomic_write_u32(&event->ready, 1);
 }
 
 // 3. The Hooks
